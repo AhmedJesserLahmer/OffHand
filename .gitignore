@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 data/raw/
-data/processed/
+# Only the test split is tracked: CI's smoke test runs examples from it.
+data/processed/*
+!data/processed/test.jsonl
 checkpoints/
 *.safetensors
 *.bin
