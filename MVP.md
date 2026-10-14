@@ -185,6 +185,35 @@ Also verified: the engine inside Snap VS Code's runtime, GPU (NVIDIA, ~0.15-0.25
 CPU-only (~1.3s), GPU-to-CPU fallback, the engine stopping within 1s when its parent is killed (both
 watchdogs), Hugging Face downloads, quality on 200 test examples (same as fp32).
 
+### CI/CD (GitHub Actions)
+
+One workflow per check in `.github/workflows/`, each on Linux, Windows and macOS (`fail-fast: false`,
+so one OS failing doesn't hide the others):
+
+| Workflow | Runs | When |
+|---|---|---|
+| `fast-compile.yml` | `npm run compile`: TypeScript compiles, no type errors | every push and PR |
+| `fast-unit-tests.yml` | `npm run test:unit` | every push and PR |
+| `fast-python-tests.yml` | `python -m unittest tests.test_postprocess` (standard library only) | every push and PR |
+| `fast-package.yml` | `vsce package`, then checks the `.vsix` has a `dist/*.js` for every `src/*.ts` plus `package.json`, README and LICENSE, and no `src/`, `test/` or `node_modules/`; keeps the Linux `.vsix` as a run artifact | every push and PR |
+| `heavy-smoke.yml` | `test/smoke.mjs` on 5 examples of `data/processed/test.jsonl` with the published model | pushes to `master`, `v*` tags, nightly 04:00 UTC, manual |
+| `heavy-integration.yml` | the integration suite with the published model (`COMMIT_MODEL_PATH`); `xvfb-run` on Linux | pushes to `master`, `v*` tags, nightly 03:00 UTC, manual |
+| `release.yml` | on a `v*` tag: unit, Python and package checks on all three OSes, then (Linux) tag = `package.json` version check and `vsce publish` | `v*` tags |
+
+- The heavy workflows download the model from Hugging Face (`Jess2005/commit-model-CLI`, public, no
+  token) with `curl`, cached per OS (`actions/cache`, key `model-q4km-<OS>`, shared by both); the
+  llama.cpp engine is downloaded by the extension's own code as for a user. Runners have no GPU, so the
+  engine falls back to its CPU build.
+- `data/processed/test.jsonl` is tracked for the smoke test (`.gitignore` un-ignores only that file;
+  train and validation stay ignored).
+- Release needs the repository secret `VSCE_PAT` (Azure DevOps token, Marketplace → Manage). To release:
+  bump `vscode-extension/package.json` `version`, update `CHANGELOG.md`, commit, push, then
+  `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- Results: the three first fast workflows passed on all three OSes on GitHub (commit `ce0db22`). Locally:
+  the package check passes (18 files, all 10 `dist/*.js`) and the smoke test gives 5/5 valid messages
+  (CPU-capable engine, model loaded in 10.7s). Not yet run on GitHub: package, smoke, integration,
+  release.
+
 ### Windows
 
 Tested in a Windows 11 Pro VM (French, unactivated) on this machine: `~/win11-vm/` (QEMU/KVM, virtual
@@ -248,7 +277,7 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 
 ## Next phases
 
-- CI: run the integration, unit and smoke tests on every push; Python/TypeScript prompt parity test
+- CI: Python/TypeScript prompt parity test (the cleanup parity is covered; see "CI/CD")
 - Package and publish (Marketplace), test on Windows and macOS
 - Retrain (`plan.md`, step 5): rebalance types so `build`, `ci`, `perf`, `style` get predicted, and clean
   the placeholders out of the training messages
