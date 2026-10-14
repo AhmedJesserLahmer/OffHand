@@ -68,7 +68,9 @@ async function main() {
         throw new Error(`Model not found: ${modelPath}. Pass a .gguf path as argument.`);
     }
 
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "commit-model-it-"));
+    // Real path: on macOS the temp folder /var/... is a symlink to /private/var/..., and VS Code (opened here)
+    // and the tests (which resolve it) must name the repository the same way.
+    const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "commit-model-it-")));
     const git = (...args) => execFileSync("git", args, { cwd: repo });
     git("init", "-q");
     git("config", "user.name", "Integration Test");

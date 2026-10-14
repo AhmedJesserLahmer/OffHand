@@ -209,10 +209,9 @@ so one OS failing doesn't hide the others):
 - Release needs the repository secret `VSCE_PAT` (Azure DevOps token, Marketplace → Manage). To release:
   bump `vscode-extension/package.json` `version`, update `CHANGELOG.md`, commit, push, then
   `git tag vX.Y.Z && git push origin vX.Y.Z`.
-- Results: the three first fast workflows passed on all three OSes on GitHub (commit `ce0db22`). Locally:
-  the package check passes (18 files, all 10 `dist/*.js`) and the smoke test gives 5/5 valid messages
-  (CPU-capable engine, model loaded in 10.7s). Not yet run on GitHub: package, smoke, integration,
-  release.
+- Results on GitHub (commit `ce470f7`): all four fast workflows and the smoke test pass on all three OSes;
+  integration passes on Linux and Windows, failed on macOS (repository path symlink, fixed in the next
+  commit, not yet confirmed on GitHub). Release not run yet (needs a tag and `VSCE_PAT`).
 
 ### Windows
 
@@ -270,6 +269,7 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 | suggestions contained `(#<I>)` and inconsistent capitals | suggestion cleanup |
 | launching VS Code for tests failed: inherited `VSCODE_*`/`ELECTRON_*` variables, Snap environment, Wayland crash | handled in `test/integration/runTest.js` |
 | engine unpacking failed on Windows in CI (`tar: Cannot connect to D: resolve failed`): Git Bash puts Git's GNU tar first on the PATH, which reads `D:\...` as a remote host and can't unpack .zip; a user with Git's `usr\bin` on the PATH would hit it too | Windows' own `%SystemRoot%\System32\tar.exe` by full path (`tarPath()` in `src/engine.ts`) |
+| integration tests on macOS in CI: "Timed out waiting for Git to open the test repository"; the temp folder `/var/...` is a symlink to `/private/var/...`, VS Code was opened with one name and the tests looked for the other | `runTest.js` resolves the repository's real path before opening VS Code |
 
 ## Left for the MVP
 
