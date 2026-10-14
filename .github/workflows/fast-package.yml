@@ -1,0 +1,55 @@
+# Fast check: the extension still packages into a .vsix, and the package holds what it needs to run.
+# vsce zips every file in vscode-extension/ except what .vscodeignore excludes, so this catches a broken
+# package.json (vsce refuses to package) and a .vscodeignore that drops the compiled code or ships the sources.
+name: "fast: package"
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: vscode-extension
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - uses: actions/setup-python@v5 # only to list the .vsix (a zip) the same way on every OS
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run compile # the package has no vscode:prepublish script, so compile first
+      - run: npx vsce package --out offhand.vsix
+      - name: Check the package contents
+        run: |
+          python -m zipfile -l offhand.vsix | tee contents.txt
+          status=0
+          for source in src/*.ts; do
+            compiled="extension/dist/$(basename "$source" .ts).js"
+            grep -q "$compiled" contents.txt || { echo "::error::missing from the package: $compiled"; status=1; }
+          done
+          for name in package.json readme.md LICENSE.txt; do
+            grep -qi "extension/$name" contents.txt || { echo "::error::missing from the package: $name"; status=1; }
+          done
+          if grep -E "extension/(src|test|node_modules)/" contents.txt; then
+            echo "::error::sources, tests or node_modules are in the package"
+            status=1
+          fi
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: offhand-vsix
+          path: vscode-extension/offhand.vsix
