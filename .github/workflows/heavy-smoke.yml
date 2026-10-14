@@ -1,0 +1,50 @@
+# Heavy check: the real model, outside VS Code. Loads the published model (from Hugging Face) with the
+# llama.cpp engine the extension downloads, builds the prompt for a few test examples exactly as the
+# extension does, and fails if a generated message isn't in Conventional Commits format.
+# The wording isn't compared: generation can differ slightly between machines.
+name: "heavy: smoke test"
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  schedule:
+    - cron: "0 4 * * *" # nightly, 04:00 UTC
+  workflow_dispatch:
+
+env:
+  MODEL_URL: https://huggingface.co/Jess2005/commit-model-CLI/resolve/main/commit-model-Q4_K_M.gguf
+  MODEL_FILE: model/commit-model-Q4_K_M.gguf
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      # The model (~1 GB) is downloaded once per OS and then restored from the cache.
+      - uses: actions/cache@v4
+        id: model
+        with:
+          path: model
+          key: model-q4km-${{ runner.os }}
+      - if: steps.model.outputs.cache-hit != 'true'
+        run: mkdir -p model && curl -fL --retry 3 -o "$MODEL_FILE" "$MODEL_URL"
+      - run: npm ci && npm run compile
+        working-directory: vscode-extension
+      - run: node test/smoke.mjs "../$MODEL_FILE" ../data/processed/test.jsonl 5
+        working-directory: vscode-extension
+        env:
+          COMMIT_MODEL_STORAGE: ${{ runner.temp }}/commit-model-smoke
