@@ -269,6 +269,7 @@ into separate module`, `docs: add more details to README`, `chore: add tests wor
 | the green ✅ emoji looked out of place | plain `✓` colored by the terminal, plus the commit hash |
 | suggestions contained `(#<I>)` and inconsistent capitals | suggestion cleanup |
 | launching VS Code for tests failed: inherited `VSCODE_*`/`ELECTRON_*` variables, Snap environment, Wayland crash | handled in `test/integration/runTest.js` |
+| engine unpacking failed on Windows in CI (`tar: Cannot connect to D: resolve failed`): Git Bash puts Git's GNU tar first on the PATH, which reads `D:\...` as a remote host and can't unpack .zip; a user with Git's `usr\bin` on the PATH would hit it too | Windows' own `%SystemRoot%\System32\tar.exe` by full path (`tarPath()` in `src/engine.ts`) |
 
 ## Left for the MVP
 

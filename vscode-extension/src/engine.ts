@@ -115,6 +115,17 @@ function run(file: string, args: string[], options: { cwd?: string; env?: NodeJS
     });
 }
 
+/**
+ * tar ships with Linux, macOS and Windows 10+, and Windows' tar also unpacks .zip. On Windows it's called
+ * by full path: Git's GNU tar can come first on the PATH (Git Bash, or Git's usr\bin added to the PATH),
+ * and it can't unpack .zip and reads "C:\..." as a remote host "C".
+ */
+function tarPath(): string {
+    return process.platform === "win32"
+        ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+        : "tar";
+}
+
 /** Library search path so the server finds the shared libraries shipped next to it. */
 function serverEnv(binDir: string): NodeJS.ProcessEnv {
     const join = (current?: string) => (current ? `${binDir}${path.delimiter}${current}` : binDir);
@@ -267,8 +278,7 @@ export class ModelEngine {
                 archive,
                 (percent) => onPhase({ phase: "downloading", what: "engine", percent }),
             );
-            // tar ships with Linux, macOS and Windows 10+, and Windows' tar also unpacks .zip.
-            await run("tar", ["-xf", archive, "-C", dir], {});
+            await run(tarPath(), ["-xf", archive, "-C", dir], {});
             await fs.rm(archive);
             await fs.writeFile(doneMarker, "");
         }
